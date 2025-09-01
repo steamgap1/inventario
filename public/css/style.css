@@ -1,0 +1,16 @@
+/* public/css/style.css */
+
+/* Hacer que las filas de la tabla sean "clickeables" */
+.table-hover tbody tr {
+    cursor: pointer;
+}
+
+/* Estilo para la vista activa en la navegación */
+.nav-link.active {
+    font-weight: bold;
+    color: #fff !important;
+}
+
+#app-view {
+    padding-bottom: 100px; /* Espacio para botones flotantes o pies de página */
+}
