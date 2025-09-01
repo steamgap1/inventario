@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         products: [],
         warranties: [],
         providers: [],
-        sales: [], // Nuevo: para almacenar ventas
+        sales: [],
 
         init() {
             this.addEventListeners();
@@ -77,8 +77,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (e.target.classList.contains('delete-provider-btn')) {
                 const id = e.target.dataset.id;
                 this.deleteProvider(id);
-            } else if (e.target.id === 'add-sale-btn') { // Nuevo: Añadir venta
+            } else if (e.target.id === 'add-sale-btn') {
                 this.showAddSaleForm();
+            } else if (e.target.id === 'show-inventory-report') { // Nuevo: Botón reporte inventario
+                this.loadReports('inventory');
+            } else if (e.target.id === 'show-sales-report') { // Nuevo: Botón reporte ventas
+                this.loadReports('sales');
             }
         },
 
@@ -92,7 +96,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.saveWarranty(form);
             } else if (form.id === 'provider-form') {
                 this.saveProvider(form);
-            } else if (form.id === 'sale-form') { // Nuevo: Guardar venta
+            } else if (form.id === 'sale-form') {
                 this.saveSale(form);
             }
         },
@@ -113,11 +117,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'providers':
                     this.loadProviders();
                     break;
-                case 'sales': // Nuevo: Cargar ventas
+                case 'sales':
                     this.loadSales();
                     break;
                 case 'reports':
-                    this.loadReports();
+                    ui.renderReports(); // Renderiza la interfaz de selección de reportes
                     break;
             }
         },
@@ -157,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        async loadSales() { // Nuevo: Cargar ventas
+        async loadSales() {
             try {
                 const result = await api.getSales();
                 this.sales = result.data;
@@ -167,10 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        async loadReports() {
+        async loadReports(reportType = 'inventory') { // Modificado para cargar reportes específicos
             try {
-                const result = await api.getInventoryReport();
-                ui.renderReports(result.data);
+                let reportData;
+                if (reportType === 'inventory') {
+                    reportData = await api.getInventoryReport();
+                    ui.renderReports('inventory', reportData.data);
+                } else if (reportType === 'sales') {
+                    reportData = await api.getSalesReport();
+                    ui.renderReports('sales', reportData.data);
+                }
             } catch (error) {
                 ui.showAlert('Error al cargar el reporte: ' + error.message, 'danger');
             }
@@ -296,14 +306,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        async showAddSaleForm() { // Nuevo: Mostrar formulario de venta
+        async showAddSaleForm() {
             if (this.products.length === 0) {
                 await this.loadProducts();
             }
             ui.showSaleForm(this.products);
         },
 
-        async saveSale(form) { // Nuevo: Guardar venta
+        async saveSale(form) {
             const saleData = {
                 product_id: form.elements.product_id.value,
                 quantity: form.elements.quantity.value,

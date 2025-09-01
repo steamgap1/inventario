@@ -133,5 +133,9 @@ const api = {
     // --- Reports ---
     getInventoryReport() {
         return this._fetch('/reports/inventory');
+    },
+
+    getSalesReport() { // Nuevo: Reporte de ventas
+        return this._fetch('/reports/sales');
     }
 };

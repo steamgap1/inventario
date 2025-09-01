@@ -313,4 +313,13 @@ $app->group('/reports', function (RouteCollectorProxy $group) {
         $response->getBody()->write(json_encode(['status' => 'success', 'data' => $report]));
         return $response;
     });
+
+    $group->get('/sales', function (Request $request, Response $response) {
+        $pdo = getPDO();
+        $sql = "SELECT s.*, p.name as product_name FROM sales s JOIN products p ON s.product_id = p.id ORDER BY s.sale_date DESC";
+        $stmt = $pdo->query($sql);
+        $sales = $stmt->fetchAll();
+        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $sales]));
+        return $response;
+    });
 })->add($authAdminMiddleware);

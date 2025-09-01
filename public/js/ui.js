@@ -103,7 +103,6 @@ const ui = {
     },
 
     renderSales(sales, userRole) {
-        const actionsHeader = (userRole === 'admin') ? '<th>Acciones</th>' : ''; // Aunque no haya acciones de edición/borrado para ventas
         const table = `
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2>Ventas</h2>
@@ -119,7 +118,6 @@ const ui = {
                         <th>Fecha Venta</th>
                         <th>Cliente</th>
                         <th>Notas</th>
-                        ${actionsHeader}
                     </tr>
                 </thead>
                 <tbody>
@@ -132,7 +130,6 @@ const ui = {
                             <td>${new Date(s.sale_date).toLocaleString()}</td>
                             <td>${s.customer_name || 'N/A'}</td>
                             <td>${s.notes || 'N/A'}</td>
-                            ${actionsHeader ? '<td></td>' : ''} <!-- Placeholder for actions if admin -->
                         </tr>
                     `).join('')}
                 </tbody>
@@ -141,25 +138,76 @@ const ui = {
         this.appView.innerHTML = table;
     },
 
-    renderReports(report) {
-        const content = `
-            <h2>Reporte de Inventario</h2>
-            <p>Generado: ${new Date(report.generated_at).toLocaleString()}</p>
-            <div class="card mb-4">
-                <div class="card-header">Valor Total del Inventario (Costo)</div>
-                <div class="card-body">
-                    <h3 class="card-title">$${report.total_inventory_value.toFixed(2)}</h3>
-                </div>
+    renderReports(reportType, reportData) {
+        let content = `<h2>Reportes</h2>`;
+        content += `
+            <div class="mb-3">
+                <button class="btn btn-outline-primary me-2" id="show-inventory-report">Reporte de Inventario</button>
+                <button class="btn btn-outline-primary" id="show-sales-report">Reporte de Ventas</button>
             </div>
-            <div class="card">
-                <div class="card-header">Productos con Bajo Stock (&lt; 50 unidades)</div>
-                <div class="card-body">
-                    <ul class="list-group list-group-flush">
-                        ${report.low_stock_items.map(item => `<li class="list-group-item">${item.name} - <strong>Stock: ${item.stock}</strong></li>`).join('')}
-                    </ul>
-                </div>
-            </div>
+            <hr>
         `;
+
+        if (reportType === 'inventory' && reportData) {
+            content += `
+                <h3>Reporte de Inventario</h3>
+                <p>Generado: ${new Date(reportData.generated_at).toLocaleString()}</p>
+                <div class="card mb-4">
+                    <div class="card-header">Valor Total del Inventario (Costo)</div>
+                    <div class="card-body">
+                        <h3 class="card-title">$${reportData.total_inventory_value.toFixed(2)}</h3>
+                    </div>
+                </div>
+                ${reportData.low_stock_items.length > 0 ? `
+                <div class="card border-warning mb-4">
+                    <div class="card-header bg-warning text-white">¡Notificación de Stock Bajo!</div>
+                    <div class="card-body">
+                        <p class="card-text">Los siguientes productos tienen un stock inferior a 50 unidades:</p>
+                        <ul class="list-group list-group-flush">
+                            ${reportData.low_stock_items.map(item => `<li class="list-group-item">${item.name} - <strong>Stock: ${item.stock}</strong></li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                ` : `
+                <div class="alert alert-success" role="alert">
+                    ¡Buen trabajo! No hay productos con stock bajo (menos de 50 unidades).
+                </div>
+                `}
+            `;
+        } else if (reportType === 'sales' && reportData) {
+            content += `
+                <h3>Reporte de Ventas</h3>
+                <p>Generado: ${new Date().toLocaleString()}</p>
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>ID Venta</th>
+                            <th>Producto</th>
+                            <th>Cantidad</th>
+                            <th>Precio Venta</th>
+                            <th>Fecha Venta</th>
+                            <th>Cliente</th>
+                            <th>Notas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${reportData.map(s => `
+                            <tr data-id="${s.id}">
+                                <td>${s.id}</td>
+                                <td>${s.product_name}</td>
+                                <td>${s.quantity}</td>
+                                <td>$${parseFloat(s.sale_price).toFixed(2)}</td>
+                                <td>${new Date(s.sale_date).toLocaleString()}</td>
+                                <td>${s.customer_name || 'N/A'}</td>
+                                <td>${s.notes || 'N/A'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        } else {
+            content += `<p>Selecciona un tipo de reporte para visualizar.</p>`;
+        }
         this.appView.innerHTML = content;
     },
 
