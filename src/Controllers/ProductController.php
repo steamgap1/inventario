@@ -18,21 +18,64 @@ class ProductController
     public function getAll(Request $request, Response $response): Response
     {
         $user = $request->getAttribute('user');
+        $params = $request->getQueryParams();
+
+        // Base SQL
+        $baseSql = "FROM products p LEFT JOIN providers pr ON p.provider_id = pr.id WHERE p.is_active = 1";
         
+        // Determine which price column to show
         if ($user['role'] === 'admin') {
-            $sql = "SELECT p.*, pr.name as provider_name FROM products p LEFT JOIN providers pr ON p.provider_id = pr.id WHERE p.is_active = 1";
-            $stmt = $this->pdo->query($sql);
+            $selectSql = "SELECT p.*, pr.name as provider_name ";
         } else {
-            $priceColumn = 'price_client'; // Default price for 'cliente' role
+            $priceColumn = 'price_client';
             if ($user['role'] === 'vendedor') {
                 $priceColumn = 'price_wholesale';
             }
-
-            $sql = "SELECT p.id, p.name, p.description, p.stock, p.condition, p.image_path, {$priceColumn} as price, pr.name as provider_name 
-                    FROM products p LEFT JOIN providers pr ON p.provider_id = pr.id WHERE p.is_active = 1";
-            $stmt = $this->pdo->query($sql);
+            $selectSql = "SELECT p.id, p.name, p.description, p.stock, p.condition, p.image_path, {$priceColumn} as price, pr.name as provider_name ";
         }
 
+        // Build WHERE clause
+        $where = [];
+        $bindings = [];
+
+        if (!empty($params['search'])) {
+            $where[] = "(p.name LIKE ? OR p.description LIKE ?)";
+            $bindings[] = '%' . $params['search'] . '%';
+            $bindings[] = '%' . $params['search'] . '%';
+        }
+
+        if (isset($params['low_stock']) && $params['low_stock'] === 'true') {
+            $where[] = "p.stock < 50";
+        }
+        
+        $sql = $selectSql . $baseSql;
+        if (count($where) > 0) {
+            // Since the base SQL already has a WHERE, we need to use AND
+            $sql .= " AND " . implode(' AND ', $where);
+        }
+
+        // Build ORDER BY clause
+        $orderBy = [];
+        if (!empty($params['stock_order']) && in_array(strtoupper($params['stock_order']), ['ASC', 'DESC'])) {
+            $orderBy[] = "p.stock " . strtoupper($params['stock_order']);
+        }
+        if (!empty($params['price_order'])) {
+            $priceSortColumn = 'p.price_client'; // Default for admin
+            if ($user['role'] !== 'admin') {
+                $priceSortColumn = 'price'; // Use the alias for other roles
+            }
+            if (in_array(strtoupper($params['price_order']), ['ASC', 'DESC'])) {
+                $orderBy[] = $priceSortColumn . " " . strtoupper($params['price_order']);
+            }
+        }
+
+        if (count($orderBy) > 0) {
+            $sql .= " ORDER BY " . implode(', ', $orderBy);
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bindings);
+        
         $products = $stmt->fetchAll();
         $response->getBody()->write(json_encode(['status' => 'success', 'data' => $products]));
         return $response;

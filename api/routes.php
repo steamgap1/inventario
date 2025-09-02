@@ -50,6 +50,7 @@ $authAdminMiddleware = function (Request $request, RequestHandlerInterface $hand
 $authController = new \App\Controllers\AuthController(getPDO());
 $app->post('/login', [$authController, 'login']);
 $app->post('/logout', [$authController, 'logout']);
+$app->get('/session', [$authController, 'checkSession']);
 
 
 // === RUTAS DE PRODUCTOS (CRUD) - REFACTORIZADO ===

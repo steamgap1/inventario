@@ -8,8 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
         providers: [],
         sales: [],
 
-        init() {
+        async init() {
             this.addEventListeners();
+            try {
+                const result = await api.checkSession();
+                this.user = result.data;
+                this.showAppView();
+            } catch (error) {
+                // No active session, show login view
+                this.showLoginView();
+            }
         },
 
         addEventListeners() {
@@ -126,13 +134,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
 
-        async loadProducts() {
+        async loadProducts(filters = {}) {
             try {
-                const result = await api.getProducts();
+                const result = await api.getProducts(filters);
                 this.products = result.data;
                 ui.renderProducts(this.products, this.user.role);
+                this.setupProductFilters(); // Call setup after rendering
             } catch (error) {
                 ui.showAlert('Error al cargar productos: ' + error.message, 'danger');
+            }
+        },
+
+        setupProductFilters() {
+            const form = document.getElementById('product-filter-form');
+            if (form) {
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const search = form.elements['search-product'].value;
+                    const stockOrder = form.elements['stock-order'].value;
+                    const priceOrder = form.elements['price-order'].value;
+                    const lowStock = form.elements['low-stock-filter'].checked;
+
+                    const filters = {
+                        search: search,
+                        stock_order: stockOrder,
+                        price_order: priceOrder,
+                        low_stock: lowStock ? 'true' : 'false'
+                    };
+                    this.loadProducts(filters);
+                });
+
+                document.getElementById('clear-product-filters').addEventListener('click', () => {
+                    form.reset();
+                    this.loadProducts({}); // Load all products
+                });
             }
         },
 

@@ -35,9 +35,14 @@ const api = {
         return this._fetch('/logout', { method: 'POST' });
     },
 
+    checkSession() {
+        return this._fetch('/session');
+    },
+
     // --- Products ---
-    getProducts() {
-        return this._fetch('/products');
+    getProducts(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/products?${query}`);
     },
 
     getProduct(id) {

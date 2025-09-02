@@ -38,4 +38,15 @@ class AuthController
         $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Sesión cerrada']));
         return $response->withStatus(200);
     }
+
+    public function checkSession(Request $request, Response $response): Response
+    {
+        if (isset($_SESSION['user'])) {
+            $response->getBody()->write(json_encode(['status' => 'success', 'data' => $_SESSION['user']]));
+            return $response->withStatus(200);
+        } else {
+            $response->getBody()->write(json_encode(['status' => 'error', 'message' => 'No hay sesión activa']));
+            return $response->withStatus(401);
+        }
+    }
 }

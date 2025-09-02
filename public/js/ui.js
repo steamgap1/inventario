@@ -15,11 +15,47 @@ const ui = {
         const entryDateHeader = '<th>F. Entrada</th>';
         const warrantyExpHeader = '<th>Garantía Exp.</th>';
 
+        const searchFilterForm = `
+            <div class="mb-3 p-3 border rounded bg-light">
+                <form id="product-filter-form" class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="search-product" class="form-label">Buscar Producto</label>
+                        <input type="text" class="form-control" id="search-product" placeholder="Nombre o descripción">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="stock-order" class="form-label">Ordenar por Stock</label>
+                        <select class="form-select" id="stock-order">
+                            <option value="">Sin ordenar</option>
+                            <option value="asc">Ascendente</option>
+                            <option value="desc">Descendente</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="price-order" class="form-label">Ordenar por Precio</label>
+                        <select class="form-select" id="price-order">
+                            <option value="">Sin ordenar</option>
+                            <option value="asc">Ascendente</option>
+                            <option value="desc">Descendente</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 form-check form-switch d-flex align-items-center mb-3">
+                        <input class="form-check-input" type="checkbox" id="low-stock-filter" role="switch">
+                        <label class="form-check-label ms-2" for="low-stock-filter">Stock Bajo (<50)</label>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary me-2">Aplicar Filtros</button>
+                        <button type="button" class="btn btn-secondary" id="clear-product-filters">Limpiar Filtros</button>
+                    </div>
+                </form>
+            </div>
+        `;
+
         const table = `
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2>Productos</h2>
                 ${userRole === 'admin' ? '<button id="add-product-btn" class="btn btn-primary">Añadir Producto</button>' : ''}
             </div>
+            ${searchFilterForm}
             <table class="table table-hover table-sm">
                 <thead>
                     <tr>
@@ -155,7 +191,7 @@ const ui = {
                 <div class="card mb-4">
                     <div class="card-header">Valor Total del Inventario (Costo)</div>
                     <div class="card-body">
-                        <h3 class="card-title">$${reportData.total_inventory_value.toFixed(2)}</h3>
+                        <h3 class="card-title">${reportData.total_inventory_value.toFixed(2)}</h3>
                     </div>
                 </div>
                 ${reportData.low_stock_items.length > 0 ? `
@@ -178,6 +214,12 @@ const ui = {
             content += `
                 <h3>Reporte de Ventas</h3>
                 <p>Generado: ${new Date().toLocaleString()}</p>
+                <div class="card mb-4">
+                    <div class="card-header">Valor Total de Ventas</div>
+                    <div class="card-body">
+                        <h3 class="card-title">${reportData.total_sold.toFixed(2)}</h3>
+                    </div>
+                </div>
                 <table class="table table-hover table-sm">
                     <thead>
                         <tr>
@@ -191,12 +233,12 @@ const ui = {
                         </tr>
                     </thead>
                     <tbody>
-                        ${reportData.map(s => `
+                        ${reportData.sales.map(s => `
                             <tr data-id="${s.id}">
                                 <td>${s.id}</td>
                                 <td>${s.product_name}</td>
                                 <td>${s.quantity}</td>
-                                <td>$${parseFloat(s.sale_price).toFixed(2)}</td>
+                                <td>${parseFloat(s.sale_price).toFixed(2)}</td>
                                 <td>${new Date(s.sale_date).toLocaleString()}</td>
                                 <td>${s.customer_name || 'N/A'}</td>
                                 <td>${s.notes || 'N/A'}</td>
