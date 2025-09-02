@@ -61,8 +61,20 @@ class SaleController
 
     public function getAll(Request $request, Response $response): Response
     {
-        $sql = "SELECT s.*, p.name as product_name FROM sales s JOIN products p ON s.product_id = p.id ORDER BY s.sale_date DESC";
-        $stmt = $this->pdo->query($sql);
+        $params = $request->getQueryParams();
+        $sql = "SELECT s.*, p.name as product_name FROM sales s JOIN products p ON s.product_id = p.id";
+        $bindings = [];
+
+        if (!empty($params['search'])) {
+            $sql .= " WHERE (p.name LIKE ? OR s.customer_name LIKE ?)";
+            $bindings[] = '%' . $params['search'] . '%';
+            $bindings[] = '%' . $params['search'] . '%';
+        }
+
+        $sql .= " ORDER BY s.sale_date DESC";
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bindings);
         $sales = $stmt->fetchAll();
         $response->getBody()->write(json_encode(['status' => 'success', 'data' => $sales]));
         return $response;

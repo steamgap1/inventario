@@ -17,7 +17,20 @@ class ProviderController
 
     public function getAll(Request $request, Response $response): Response
     {
-        $stmt = $this->pdo->query("SELECT * FROM providers");
+        $params = $request->getQueryParams();
+        $sql = "SELECT * FROM providers";
+        $bindings = [];
+
+        if (!empty($params['search'])) {
+            $sql .= " WHERE (name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?)";
+            $bindings[] = '%' . $params['search'] . '%';
+            $bindings[] = '%' . $params['search'] . '%';
+            $bindings[] = '%' . $params['search'] . '%';
+            $bindings[] = '%' . $params['search'] . '%';
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bindings);
         $providers = $stmt->fetchAll();
         $response->getBody()->write(json_encode(['status' => 'success', 'data' => $providers]));
         return $response;

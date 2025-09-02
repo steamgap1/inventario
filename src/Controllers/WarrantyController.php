@@ -17,7 +17,20 @@ class WarrantyController
 
     public function getAll(Request $request, Response $response): Response
     {
-        $warranties = $this->pdo->query("SELECT w.*, p.name as product_name FROM warranties w JOIN products p ON w.product_id = p.id")->fetchAll();
+        $params = $request->getQueryParams();
+        $sql = "SELECT w.*, p.name as product_name FROM warranties w JOIN products p ON w.product_id = p.id";
+        $bindings = [];
+
+        if (!empty($params['search'])) {
+            $sql .= " WHERE (p.name LIKE ? OR w.notes LIKE ?)";
+            $bindings[] = '%' . $params['search'] . '%';
+            $bindings[] = '%' . $params['search'] . '%';
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($bindings);
+        $warranties = $stmt->fetchAll();
+
         $response->getBody()->write(json_encode(['status' => 'success', 'data' => $warranties]));
         return $response;
     }

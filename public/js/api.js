@@ -1,8 +1,7 @@
-// public/js/api.js
 
 const API_BASE_URL = '/inventario/public'; // Ajusta si tu estructura de URL es diferente
 
-const api = {
+export const api = {
     async _fetch(url, options = {}) {
         options.headers = options.headers || {};
         options.credentials = 'include'; // Incluir cookies en las solicitudes para la sesión
@@ -77,8 +76,9 @@ const api = {
     },
 
     // --- Providers ---
-    getProviders() {
-        return this._fetch('/providers');
+    getProviders(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/providers?${query}`);
     },
 
     createProvider(providerData) {
@@ -102,8 +102,9 @@ const api = {
     },
 
     // --- Sales ---
-    getSales() {
-        return this._fetch('/sales');
+    getSales(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/sales?${query}`);
     },
 
     createSale(saleData) {
@@ -115,8 +116,9 @@ const api = {
     },
 
     // --- Warranties ---
-    getWarranties() {
-        return this._fetch('/warranties');
+    getWarranties(params = {}) {
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/warranties?${query}`);
     },
 
     createWarranty(warrantyData) {

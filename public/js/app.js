@@ -1,12 +1,16 @@
-// public/js/app.js
+
+import { api } from './api.js';
+import * as ui from './ui.js';
+import * as product from './modules/product.js';
+import * as warranty from './modules/warranty.js';
+import * as provider from './modules/provider.js';
+import * as sale from './modules/sale.js';
+import * as report from './modules/report.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log(ui);
     const app = {
         user: null,
-        products: [],
-        warranties: [],
-        providers: [],
-        sales: [],
 
         async init() {
             this.addEventListeners();
@@ -65,47 +69,42 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         handleAppViewClick(e) {
-            if (e.target.id === 'add-product-btn') {
-                this.showAddProductForm();
-            } else if (e.target.classList.contains('edit-product-btn')) {
-                const id = e.target.dataset.id;
-                const product = this.products.find(p => p.id == id);
-                this.showEditProductForm(product);
-            } else if (e.target.classList.contains('delete-product-btn')) {
-                const id = e.target.dataset.id;
-                this.deleteProduct(id);
-            } else if (e.target.id === 'add-warranty-btn') {
-                this.showAddWarrantyForm();
-            } else if (e.target.id === 'add-provider-btn') {
-                ui.showProviderForm();
-            } else if (e.target.classList.contains('edit-provider-btn')) {
-                const id = e.target.dataset.id;
-                const provider = this.providers.find(p => p.id == id);
-                ui.showProviderForm(provider);
-            } else if (e.target.classList.contains('delete-provider-btn')) {
-                const id = e.target.dataset.id;
-                this.deleteProvider(id);
-            } else if (e.target.id === 'add-sale-btn') {
-                this.showAddSaleForm();
-            } else if (e.target.id === 'show-inventory-report') { // Nuevo: Botón reporte inventario
-                this.loadReports('inventory');
-            } else if (e.target.id === 'show-sales-report') { // Nuevo: Botón reporte ventas
-                this.loadReports('sales');
+            const route = document.querySelector('.nav-link.active').dataset.route;
+            switch (route) {
+                case 'products':
+                    product.handleProductClick(e);
+                    break;
+                case 'warranties':
+                    warranty.handleWarrantyClick(e);
+                    break;
+                case 'providers':
+                    provider.handleProviderClick(e);
+                    break;
+                case 'sales':
+                    sale.handleSaleClick(e);
+                    break;
+                case 'reports':
+                    report.handleReportClick(e);
+                    break;
             }
         },
 
         handleModalFormSubmit(e) {
             e.preventDefault();
-            const form = e.target;
-
-            if (form.id === 'product-form') {
-                this.saveProduct(form);
-            } else if (form.id === 'warranty-form') {
-                this.saveWarranty(form);
-            } else if (form.id === 'provider-form') {
-                this.saveProvider(form);
-            } else if (form.id === 'sale-form') {
-                this.saveSale(form);
+            const route = document.querySelector('.nav-link.active').dataset.route;
+            switch (route) {
+                case 'products':
+                    product.handleProductFormSubmit(e);
+                    break;
+                case 'warranties':
+                    warranty.handleWarrantyFormSubmit(e);
+                    break;
+                case 'providers':
+                    provider.handleProviderFormSubmit(e);
+                    break;
+                case 'sales':
+                    sale.handleSaleFormSubmit(e);
+                    break;
             }
         },
 
@@ -117,254 +116,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             switch (route) {
                 case 'products':
-                    this.loadProducts();
+                    product.init(this.user.role);
                     break;
                 case 'warranties':
-                    this.loadWarranties();
+                    warranty.init();
                     break;
                 case 'providers':
-                    this.loadProviders();
+                    provider.init(this.user.role);
                     break;
                 case 'sales':
-                    this.loadSales();
+                    sale.init(this.user.role);
                     break;
                 case 'reports':
-                    ui.renderReports(); // Renderiza la interfaz de selección de reportes
+                    report.init();
                     break;
-            }
-        },
-
-        async loadProducts(filters = {}) {
-            try {
-                const result = await api.getProducts(filters);
-                this.products = result.data;
-                ui.renderProducts(this.products, this.user.role);
-                this.setupProductFilters(); // Call setup after rendering
-            } catch (error) {
-                ui.showAlert('Error al cargar productos: ' + error.message, 'danger');
-            }
-        },
-
-        setupProductFilters() {
-            const form = document.getElementById('product-filter-form');
-            if (form) {
-                form.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    const search = form.elements['search-product'].value;
-                    const stockOrder = form.elements['stock-order'].value;
-                    const priceOrder = form.elements['price-order'].value;
-                    const lowStock = form.elements['low-stock-filter'].checked;
-
-                    const filters = {
-                        search: search,
-                        stock_order: stockOrder,
-                        price_order: priceOrder,
-                        low_stock: lowStock ? 'true' : 'false'
-                    };
-                    this.loadProducts(filters);
-                });
-
-                document.getElementById('clear-product-filters').addEventListener('click', () => {
-                    form.reset();
-                    this.loadProducts({}); // Load all products
-                });
-            }
-        },
-
-        async loadWarranties() {
-            try {
-                const result = await api.getWarranties();
-                this.warranties = result.data;
-                // Necesitamos los productos para el formulario de añadir garantía
-                if (this.products.length === 0) {
-                    const prodResult = await api.getProducts();
-                    this.products = prodResult.data;
-                }
-                ui.renderWarranties(this.warranties);
-            } catch (error) {
-                ui.showAlert('Error al cargar garantías: ' + error.message, 'danger');
-            }
-        },
-
-        async loadProviders() {
-            try {
-                const result = await api.getProviders();
-                this.providers = result.data;
-                ui.renderProviders(this.providers, this.user.role);
-            } catch (error) {
-                ui.showAlert('Error al cargar proveedores: ' + error.message, 'danger');
-            }
-        },
-
-        async loadSales() {
-            try {
-                const result = await api.getSales();
-                this.sales = result.data;
-                ui.renderSales(this.sales, this.user.role);
-            } catch (error) {
-                ui.showAlert('Error al cargar ventas: ' + error.message, 'danger');
-            }
-        },
-
-        async loadReports(reportType = 'inventory') { // Modificado para cargar reportes específicos
-            try {
-                let reportData;
-                if (reportType === 'inventory') {
-                    reportData = await api.getInventoryReport();
-                    ui.renderReports('inventory', reportData.data);
-                } else if (reportType === 'sales') {
-                    reportData = await api.getSalesReport();
-                    ui.renderReports('sales', reportData.data);
-                }
-            } catch (error) {
-                ui.showAlert('Error al cargar el reporte: ' + error.message, 'danger');
-            }
-        },
-
-        // --- LÓGICA DE ACCIONES CRUD ---
-        async showAddProductForm() {
-            // Asegurarse de que los proveedores estén cargados antes de mostrar el formulario
-            if (this.providers.length === 0) {
-                await this.loadProviders();
-            }
-            ui.showProductForm({}, this.providers);
-        },
-
-        async showEditProductForm(product) {
-            if (this.providers.length === 0) {
-                await this.loadProviders();
-            }
-            ui.showProductForm(product, this.providers);
-        },
-
-        async saveProduct(form) {
-            const id = form.dataset.id;
-            const productData = {
-                name: form.elements.name.value,
-                description: form.elements.description.value,
-                stock: form.elements.stock.value,
-                condition: form.elements.condition.value,
-                cost: form.elements.cost.value,
-                price_client: form.elements.price_client.value,
-                price_wholesale: form.elements.price_wholesale.value,
-                price_technician: form.elements.price_technician.value,
-                provider_id: form.elements.provider_id.value || null,
-                entry_date: form.elements.entry_date.value || null,
-                warranty_expires_on: form.elements.warranty_expires_on.value || null
-            };
-
-            try {
-                if (id) {
-                    await api.updateProduct(id, productData);
-                    ui.showAlert('Producto actualizado con éxito.');
-                } else {
-                    await api.createProduct(productData);
-                    ui.showAlert('Producto creado con éxito.');
-                }
-                ui.hideModal();
-                this.loadProducts();
-            } catch (error) {
-                ui.showAlert('Error al guardar el producto: ' + error.message, 'danger');
-            }
-        },
-
-        async deleteProduct(id) {
-            if (confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-                try {
-                    await api.deleteProduct(id);
-                    ui.showAlert('Producto eliminado con éxito.');
-                    this.loadProducts();
-                } catch (error) {
-                    ui.showAlert('Error al eliminar el producto: ' + error.message, 'danger');
-                }
-            }
-        },
-
-        async showAddWarrantyForm() {
-            if (this.products.length === 0) {
-                await this.loadProducts();
-            }
-            ui.showWarrantyForm(this.products);
-        },
-
-        async saveWarranty(form) {
-            const warrantyData = {
-                product_id: form.elements.product_id.value,
-                start_date: form.elements.start_date.value,
-                end_date: form.elements.end_date.value,
-                notes: form.elements.notes.value
-            };
-
-            try {
-                await api.createWarranty(warrantyData);
-                ui.showAlert('Garantía registrada con éxito.');
-                ui.hideModal();
-                this.loadWarranties();
-            } catch (error) {
-                ui.showAlert('Error al registrar la garantía: ' + error.message, 'danger');
-            }
-        },
-
-        async saveProvider(form) {
-            const id = form.dataset.id;
-            const providerData = {
-                name: form.elements.name.value,
-                contact_person: form.elements.contact_person.value,
-                phone: form.elements.phone.value,
-                email: form.elements.email.value
-            };
-
-            try {
-                if (id) {
-                    await api.updateProvider(id, providerData);
-                    ui.showAlert('Proveedor actualizado con éxito.');
-                } else {
-                    await api.createProvider(providerData);
-                    ui.showAlert('Proveedor creado con éxito.');
-                }
-                ui.hideModal();
-                this.loadProviders();
-            } catch (error) {
-                ui.showAlert('Error al guardar el proveedor: ' + error.message, 'danger');
-            }
-        },
-
-        async deleteProvider(id) {
-            if (confirm('¿Estás seguro de que quieres eliminar este proveedor? Esto no eliminará los productos asociados.')) {
-                try {
-                    await api.deleteProvider(id);
-                    ui.showAlert('Proveedor eliminado con éxito.');
-                    this.loadProviders();
-                } catch (error) {
-                    ui.showAlert('Error al eliminar el proveedor: ' + error.message, 'danger');
-                }
-            }
-        },
-
-        async showAddSaleForm() {
-            if (this.products.length === 0) {
-                await this.loadProducts();
-            }
-            ui.showSaleForm(this.products);
-        },
-
-        async saveSale(form) {
-            const saleData = {
-                product_id: form.elements.product_id.value,
-                quantity: form.elements.quantity.value,
-                sale_price: form.elements.sale_price.value,
-                customer_name: form.elements.customer_name.value || null,
-                notes: form.elements.notes.value || null
-            };
-
-            try {
-                await api.createSale(saleData);
-                ui.showAlert('Venta registrada con éxito y stock actualizado.');
-                ui.hideModal();
-                this.loadSales();
-                this.loadProducts(); // Recargar productos para ver el stock actualizado
-            } catch (error) {
-                ui.showAlert('Error al registrar la venta: ' + error.message, 'danger');
             }
         },
 
