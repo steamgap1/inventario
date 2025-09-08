@@ -1,34 +1,40 @@
-
 import { api } from '../api.js';
 import * as ui from '../ui.js';
 
 let providers = [];
 let userRole = '';
+let currentFilters = {};
+
+// Template caching
+const providerRowTemplate = document.getElementById('provider-row-template').content;
 
 function getProviderRow(provider, userRole) {
-    const actions = (userRole === 'admin') ? `
-        <td>
-            <button class="btn btn-sm btn-warning edit-provider-btn" data-id="${provider.id}">Editar</button>
-            <button class="btn btn-sm btn-danger delete-provider-btn" data-id="${provider.id}">Eliminar</button>
-        </td>
-    ` : '';
-    return `
-        <tr data-id="${provider.id}">
-            <td>${provider.id}</td>
-            <td>${provider.name}</td>
-            <td>${provider.contact_person || 'N/A'}</td>
-            <td>${provider.phone || 'N/A'}</td>
-            <td>${provider.email || 'N/A'}</td>
-            ${actions}
-        </tr>
-    `;
+    const row = document.importNode(providerRowTemplate, true);
+    const rowElement = row.querySelector('tr');
+    rowElement.dataset.id = provider.id;
+
+    row.querySelector('[data-label="ID"]').textContent = provider.id;
+    row.querySelector('[data-label="Nombre"]').textContent = provider.name;
+    row.querySelector('[data-label="Contacto"]').textContent = provider.contact_person || 'N/A';
+    row.querySelector('[data-label="Teléfono"]').textContent = provider.phone || 'N/A';
+    row.querySelector('[data-label="Email"]').textContent = provider.email || 'N/A';
+
+    if (userRole === 'admin') {
+        row.querySelector('.edit-provider-btn').dataset.id = provider.id;
+        row.querySelector('.delete-provider-btn').dataset.id = provider.id;
+    } else {
+        row.querySelectorAll('.admin-only').forEach(el => el.remove());
+    }
+
+    return row;
 }
 
-async function loadProviders(filters = {}) {
+async function loadProviders(page = 1, filters = {}) {
+    currentFilters = filters;
     try {
-        const result = await api.getProviders(filters);
+        const result = await api.getProviders(page, filters);
         providers = result.data;
-        ui.renderProviders(providers, userRole, getProviderRow);
+        ui.renderProviders(providers, result.pagination, userRole, getProviderRow, (newPage) => loadProviders(newPage, currentFilters));
         setupProviderFilters();
     } catch (error) {
         ui.showAlert('Error al cargar proveedores: ' + error.message, 'danger');
@@ -42,12 +48,12 @@ function setupProviderFilters() {
             e.preventDefault();
             const search = form.elements['search-provider'].value;
             const filters = { search };
-            loadProviders(filters);
+            loadProviders(1, filters);
         });
 
         document.getElementById('clear-provider-filters').addEventListener('click', () => {
             form.reset();
-            loadProviders({}); // Load all providers
+            loadProviders(1, {});
         });
     }
 }
@@ -76,16 +82,27 @@ async function saveProvider(form) {
     }
 }
 
-async function deleteProvider(id) {
-    if (confirm('¿Estás seguro de que quieres eliminar este proveedor? Esto no eliminará los productos asociados.')) {
-        try {
-            await api.deleteProvider(id);
-            ui.showAlert('Proveedor eliminado con éxito.');
-            loadProviders();
-        } catch (error) {
-            ui.showAlert('Error al eliminar el proveedor: ' + error.message, 'danger');
+function deleteProvider(id, button) {
+    button.disabled = true;
+    ui.showConfirmModal(
+        'Confirmar Eliminación',
+        '¿Estás seguro de que quieres eliminar este proveedor? Esto no eliminará los productos asociados.',
+        async () => {
+            try {
+                await api.deleteProvider(id);
+                ui.showAlert('Proveedor eliminado con éxito.');
+                loadProviders();
+            } catch (error) {
+                ui.showAlert('Error al eliminar el proveedor: ' + error.message, 'danger');
+                button.disabled = false;
+            }
         }
-    }
+    );
+
+    const modalElement = document.getElementById('form-modal');
+    modalElement.addEventListener('hidden.bs.modal', () => {
+        button.disabled = false;
+    }, { once: true });
 }
 
 export function init(role) {
@@ -104,7 +121,7 @@ export function handleProviderClick(e) {
     }
     else if (e.target.classList.contains('delete-provider-btn')) {
         const id = e.target.dataset.id;
-        deleteProvider(id);
+        deleteProvider(id, e.target);
     }
 }
 

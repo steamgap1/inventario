@@ -11,6 +11,15 @@ use App\Controllers\SaleController;
 use App\Controllers\WarrantyController;
 use App\Controllers\ReportController;
 use App\Controllers\AuthController;
+use App\Controllers\NotificationController;
+use App\Controllers\CustomerController;
+use App\Repositories\ProductRepository;
+use App\Services\ProductService;
+use App\Controllers\InvoiceController;
+use App\Repositories\InvoiceRepository;
+use App\Repositories\SaleRepository;
+use App\Services\InvoiceService;
+use App\Services\SaleService;
 
 // Ruta para servir el frontend
 $app->get('/', function (Request $request, Response $response) {
@@ -55,13 +64,18 @@ $app->get('/session', [$authController, 'checkSession']);
 
 // === RUTAS DE PRODUCTOS (CRUD) - REFACTORIZADO ===
 $app->group('/products', function (RouteCollectorProxy $group) use ($authMiddleware, $authAdminMiddleware) {
-    $productController = new \App\Controllers\ProductController(getPDO());
+    // Dependency Injection
+    $pdo = getPDO();
+    $productRepository = new ProductRepository($pdo);
+    $productService = new ProductService($productRepository);
+    $productController = new ProductController($productService);
     
     $group->get('', [$productController, 'getAll']);
     $group->post('', [$productController, 'create'])->add($authAdminMiddleware);
     $group->put('/{id}', [$productController, 'update'])->add($authAdminMiddleware);
     $group->delete('/{id}', [$productController, 'delete'])->add($authAdminMiddleware);
     $group->post('/{id}/upload', [$productController, 'uploadImage'])->add($authAdminMiddleware);
+    $group->get('/low-stock', [$productController, 'getLowStockProducts'])->add($authAdminMiddleware);
 
 })->add($authMiddleware);
 
@@ -77,22 +91,50 @@ $app->group('/providers', function (RouteCollectorProxy $group) use ($authAdminM
 })->add($authAdminMiddleware);
 
 
+// === RUTAS DE CLIENTES (NUEVO) ===
+$app->group('/customers', function (RouteCollectorProxy $group) use ($authMiddleware, $authAdminMiddleware) {
+    // Dependency Injection
+    $pdo = getPDO();
+    $customerRepository = new \App\Repositories\CustomerRepository($pdo);
+    $customerService = new \App\Services\CustomerService($customerRepository);
+    $customerController = new \App\Controllers\CustomerController($customerService);
+
+    $group->get('', [$customerController, 'getAll']);
+    $group->get('/{id}', [$customerController, 'getOne']);
+    $group->post('', [$customerController, 'create'])->add($authAdminMiddleware);
+    $group->put('/{id}', [$customerController, 'update'])->add($authAdminMiddleware);
+    $group->delete('/{id}', [$customerController, 'delete'])->add($authAdminMiddleware);
+})->add($authMiddleware);
+
+
 // === RUTAS DE VENTAS (NUEVO) - REFACTORIZADO ===
-$app->group('/sales', function (RouteCollectorProxy $group) {
-    $saleController = new \App\Controllers\SaleController(getPDO());
+$app->group('/sales', function (RouteCollectorProxy $group) use ($authMiddleware, $authAdminMiddleware) {
+    // Dependency Injection
+    $pdo = getPDO();
+    $saleRepository = new SaleRepository($pdo);
+    $saleService = new SaleService($saleRepository);
+    $saleController = new SaleController($saleService);
 
     $group->post('', [$saleController, 'create']);
     $group->get('', [$saleController, 'getAll']);
+    $group->get('/{id}', [$saleController, 'getOne']);
+    $group->put('/{id}', [$saleController, 'update'])->add($authAdminMiddleware);
+    $group->delete('/{id}', [$saleController, 'delete'])->add($authAdminMiddleware);
 })->add($authMiddleware); // Middleware para todo el grupo de ventas
 
 
 // === RUTAS DE GARANTÍAS - REFACTORIZADO ===
-$app->group('/warranties', function (RouteCollectorProxy $group) {
-    $warrantyController = new \App\Controllers\WarrantyController(getPDO());
+$app->group('/warranties', function (RouteCollectorProxy $group) use ($authMiddleware, $authAdminMiddleware) {
+    // Dependency Injection
+    $pdo = getPDO();
+    $warrantyRepository = new \App\Repositories\WarrantyRepository($pdo);
+    $warrantyService = new \App\Services\WarrantyService($warrantyRepository);
+    $warrantyController = new \App\Controllers\WarrantyController($warrantyService);
 
     $group->get('', [$warrantyController, 'getAll']);
     $group->post('', [$warrantyController, 'create']);
-    $group->put('/{id}/status', [$warrantyController, 'updateStatus']);
+    $group->put('/{id}', [$warrantyController, 'update'])->add($authAdminMiddleware);
+    $group->delete('/{id}', [$warrantyController, 'delete'])->add($authAdminMiddleware);
 })->add($authMiddleware);
 
 
@@ -102,4 +144,47 @@ $app->group('/reports', function (RouteCollectorProxy $group) {
 
     $group->get('/inventory', [$reportController, 'getInventoryReport']);
     $group->get('/sales', [$reportController, 'getSalesReport']);
+    $group->get('/pdf', [$reportController, 'generatePdfReport']); // Nueva ruta para PDF
+    $group->get('/data', [$reportController, 'getReportData']); // Nueva ruta para datos JSON
 })->add($authAdminMiddleware);
+
+
+// === RUTAS DE COTIZACIONES (NUEVO) ===
+$app->group('/quotes', function (RouteCollectorProxy $group) use ($authMiddleware, $authAdminMiddleware) {
+    $quoteController = new \App\Controllers\QuoteController(getPDO());
+
+    $group->get('', [$quoteController, 'getAll']);
+    $group->get('/{id}', [$quoteController, 'getOne']);
+    $group->post('', [$quoteController, 'create'])->add($authAdminMiddleware);
+    $group->put('/{id}', [$quoteController, 'update'])->add($authAdminMiddleware);
+    $group->delete('/{id}', [$quoteController, 'delete'])->add($authAdminMiddleware);
+    $group->get('/{id}/pdf', [$quoteController, 'generatePdf'])->add($authAdminMiddleware);
+})->add($authMiddleware);
+
+
+// === RUTAS DE NOTIFICACIONES ===
+$app->group('/notifications', function (RouteCollectorProxy $group) use ($authMiddleware) {
+    $notificationController = new \App\Controllers\NotificationController(getPDO());
+
+    $group->get('', [$notificationController, 'getAllNotifications']);
+    $group->get('/unread-count', [$notificationController, 'getUnreadCount']);
+    $group->post('/{id}/mark-read', [$notificationController, 'markAsRead']);
+})->add($authMiddleware);
+
+
+// === RUTAS DE FACTURAS (NUEVO) ===
+$app->group('/invoices', function (RouteCollectorProxy $group) use ($authMiddleware, $authAdminMiddleware) {
+    // Dependency Injection
+    $pdo = getPDO();
+    $invoiceRepository = new \App\Repositories\InvoiceRepository($pdo);
+    $saleRepository = new \App\Repositories\SaleRepository($pdo);
+    $invoiceService = new \App\Services\InvoiceService($invoiceRepository, $saleRepository);
+    $invoiceController = new \App\Controllers\InvoiceController($invoiceService);
+
+    $group->get('', [$invoiceController, 'getAllInvoices'])->add($authMiddleware);
+    $group->post('/generate/{sale_id}', [$invoiceController, 'generateInvoice'])->add($authAdminMiddleware); // Generate invoice from sale
+    $group->get('/{id}', [$invoiceController, 'getInvoice'])->add($authMiddleware);
+    $group->put('/{id}', [$invoiceController, 'updateInvoice'])->add($authAdminMiddleware);
+    $group->delete('/{id}', [$invoiceController, 'deleteInvoice'])->add($authAdminMiddleware);
+    $group->get('/{id}/preview', [$invoiceController, 'previewInvoicePdf'])->add($authMiddleware); // Preview PDF
+})->add($authMiddleware);

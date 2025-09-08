@@ -2,54 +2,66 @@
 
 namespace App\Controllers;
 
+use App\Services\WarrantyService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use PDO;
 
 class WarrantyController
 {
-    private $pdo;
+    private $warrantyService;
 
-    public function __construct(PDO $pdo)
+    public function __construct(WarrantyService $warrantyService)
     {
-        $this->pdo = $pdo;
+        $this->warrantyService = $warrantyService;
     }
 
     public function getAll(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $sql = "SELECT w.*, p.name as product_name FROM warranties w JOIN products p ON w.product_id = p.id";
-        $bindings = [];
 
-        if (!empty($params['search'])) {
-            $sql .= " WHERE (p.name LIKE ? OR w.notes LIKE ?)";
-            $bindings[] = '%' . $params['search'] . '%';
-            $bindings[] = '%' . $params['search'] . '%';
-        }
+        $page = (int)($params['page'] ?? 1);
+        $limit = (int)($params['limit'] ?? 10);
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($bindings);
-        $warranties = $stmt->fetchAll();
+        $result = $this->warrantyService->getAllWarranties($params, $page, $limit);
 
-        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $warranties]));
+        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $result['data'], 'pagination' => $result['pagination']]));
         return $response;
     }
 
     public function create(Request $request, Response $response): Response
     {
         $data = $request->getParsedBody();
-        $stmt = $this->pdo->prepare("INSERT INTO warranties (product_id, start_date, end_date, notes) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$data['product_id'], $data['start_date'], $data['end_date'], $data['notes']]);
-        $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Garantía creada']));
-        return $response->withStatus(201);
+
+        try {
+            $this->warrantyService->createWarranty($data);
+            $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Garantía creada']));
+            return $response->withStatus(201);
+        } catch (\InvalidArgumentException $e) {
+            $response->getBody()->write(json_encode(['status' => 'error', 'message' => $e->getMessage()]));
+            return $response->withStatus(400);
+        }
     }
 
-    public function updateStatus(Request $request, Response $response, array $args): Response
+    public function update(Request $request, Response $response, array $args): Response
     {
+        $id = (int)$args['id'];
         $data = $request->getParsedBody();
-        $stmt = $this->pdo->prepare("UPDATE warranties SET status = ? WHERE id = ?");
-        $stmt->execute([$data['status'], $args['id']]);
-        $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Estado de garantía actualizado']));
+
+        try {
+            $this->warrantyService->updateWarranty($id, $data);
+            $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Garantía actualizada']));
+            return $response;
+        } catch (\InvalidArgumentException $e) {
+            $response->getBody()->write(json_encode(['status' => 'error', 'message' => $e->getMessage()]));
+            return $response->withStatus(400);
+        }
+    }
+
+    public function delete(Request $request, Response $response, array $args): Response
+    {
+        $id = (int)$args['id'];
+        $this->warrantyService->deleteWarranty($id);
+        $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Garantía eliminada']));
         return $response;
     }
 }

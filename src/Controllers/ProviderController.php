@@ -18,21 +18,55 @@ class ProviderController
     public function getAll(Request $request, Response $response): Response
     {
         $params = $request->getQueryParams();
-        $sql = "SELECT * FROM providers";
+
+        $page = (int)($params['page'] ?? 1);
+        $limit = (int)($params['limit'] ?? 10);
+        $offset = ($page - 1) * $limit;
+
+        $baseSql = "FROM providers";
+        $countSql = "SELECT COUNT(id) ";
+        $selectSql = "SELECT * ";
+
+        $where = [];
         $bindings = [];
 
         if (!empty($params['search'])) {
-            $sql .= " WHERE (name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?)";
+            $where[] = "(name LIKE ? OR contact_person LIKE ? OR phone LIKE ? OR email LIKE ?)";
             $bindings[] = '%' . $params['search'] . '%';
             $bindings[] = '%' . $params['search'] . '%';
             $bindings[] = '%' . $params['search'] . '%';
             $bindings[] = '%' . $params['search'] . '%';
         }
 
+        $whereSql = '';
+        if (count($where) > 0) {
+            $whereSql = " WHERE " . implode(' AND ', $where);
+        }
+
+        // Get total count for pagination
+        $countStmt = $this->pdo->prepare($countSql . $baseSql . $whereSql);
+        $countStmt->execute($bindings);
+        $totalRecords = $countStmt->fetchColumn();
+
+        $orderSql = " ORDER BY id DESC"; // Default sort by most recent
+
+        // Get records for the current page
+        $sql = $selectSql . $baseSql . $whereSql . $orderSql . " LIMIT ? OFFSET ?";
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($bindings);
+        $stmt->execute(array_merge($bindings, [$limit, $offset]));
+        
         $providers = $stmt->fetchAll();
-        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $providers]));
+
+        $response->getBody()->write(json_encode([
+            'status' => 'success', 
+            'data' => $providers,
+            'pagination' => [
+                'total' => $totalRecords,
+                'page' => $page,
+                'limit' => $limit,
+                'totalPages' => ceil($totalRecords / $limit)
+            ]
+        ]));
         return $response;
     }
 

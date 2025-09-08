@@ -2,154 +2,83 @@
 
 namespace App\Controllers;
 
+use App\Services\ProductService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
-use PDO;
 
 class ProductController
 {
-    private $pdo;
+    private $productService;
 
-    public function __construct(PDO $pdo)
+    public function __construct(ProductService $productService)
     {
-        $this->pdo = $pdo;
+        $this->productService = $productService;
     }
 
     public function getAll(Request $request, Response $response): Response
     {
         $user = $request->getAttribute('user');
         $params = $request->getQueryParams();
+        $params['user_role'] = $user['role']; // Pass user role to service
 
-        // Base SQL
-        $baseSql = "FROM products p LEFT JOIN providers pr ON p.provider_id = pr.id WHERE p.is_active = 1";
-        
-        // Determine which price column to show
-        if ($user['role'] === 'admin') {
-            $selectSql = "SELECT p.*, pr.name as provider_name ";
-        } else {
-            $priceColumn = 'price_client';
-            if ($user['role'] === 'vendedor') {
-                $priceColumn = 'price_wholesale';
-            }
-            $selectSql = "SELECT p.id, p.name, p.description, p.stock, p.condition, p.image_path, {$priceColumn} as price, pr.name as provider_name ";
-        }
+        $page = (int)($params['page'] ?? 1);
+        $limit = (int)($params['limit'] ?? 10);
 
-        // Build WHERE clause
-        $where = [];
-        $bindings = [];
+        $result = $this->productService->getAllProducts($params, $page, $limit);
 
-        if (!empty($params['search'])) {
-            $where[] = "(p.name LIKE ? OR p.description LIKE ?)";
-            $bindings[] = '%' . $params['search'] . '%';
-            $bindings[] = '%' . $params['search'] . '%';
-        }
-
-        if (isset($params['low_stock']) && $params['low_stock'] === 'true') {
-            $where[] = "p.stock < 50";
-        }
-        
-        $sql = $selectSql . $baseSql;
-        if (count($where) > 0) {
-            // Since the base SQL already has a WHERE, we need to use AND
-            $sql .= " AND " . implode(' AND ', $where);
-        }
-
-        // Build ORDER BY clause
-        $orderBy = [];
-        if (!empty($params['stock_order']) && in_array(strtoupper($params['stock_order']), ['ASC', 'DESC'])) {
-            $orderBy[] = "p.stock " . strtoupper($params['stock_order']);
-        }
-        if (!empty($params['price_order'])) {
-            $priceSortColumn = 'p.price_client'; // Default for admin
-            if ($user['role'] !== 'admin') {
-                $priceSortColumn = 'price'; // Use the alias for other roles
-            }
-            if (in_array(strtoupper($params['price_order']), ['ASC', 'DESC'])) {
-                $orderBy[] = $priceSortColumn . " " . strtoupper($params['price_order']);
-            }
-        }
-
-        if (count($orderBy) > 0) {
-            $sql .= " ORDER BY " . implode(', ', $orderBy);
-        }
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute($bindings);
-        
-        $products = $stmt->fetchAll();
-        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $products]));
+        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $result['data'], 'pagination' => $result['pagination']]));
         return $response;
     }
 
     public function create(Request $request, Response $response): Response
     {
         $data = $request->getParsedBody();
-        $sql = "INSERT INTO products (name, description, stock, `condition`, cost, price_client, price_wholesale, price_technician, provider_id, entry_date, warranty_expires_on) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        $stmt = $this->pdo->prepare($sql);
-        
-        $provider_id = !empty($data['provider_id']) ? $data['provider_id'] : null;
-        $entry_date = !empty($data['entry_date']) ? $data['entry_date'] : null;
-        $warranty_expires_on = !empty($data['warranty_expires_on']) ? $data['warranty_expires_on'] : null;
-
-        $stmt->execute([
-            $data['name'], $data['description'], $data['stock'], $data['condition'], 
-            $data['cost'], $data['price_client'], $data['price_wholesale'], $data['price_technician'],
-            $provider_id, $entry_date, $warranty_expires_on
-        ]);
-        
+        $this->productService->createProduct($data);
         $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Producto creado']));
         return $response->withStatus(201);
     }
 
     public function update(Request $request, Response $response, array $args): Response
     {
+        $id = (int)$args['id'];
         $data = $request->getParsedBody();
-        $sql = "UPDATE products SET name=?, description=?, stock=?, `condition`=?, cost=?, price_client=?, price_wholesale=?, price_technician=?, provider_id=?, entry_date=?, warranty_expires_on=?
-                WHERE id = ?";
-        $stmt = $this->pdo->prepare($sql);
-
-        $provider_id = !empty($data['provider_id']) ? $data['provider_id'] : null;
-        $entry_date = !empty($data['entry_date']) ? $data['entry_date'] : null;
-        $warranty_expires_on = !empty($data['warranty_expires_on']) ? $data['warranty_expires_on'] : null;
-
-        $stmt->execute([
-            $data['name'], $data['description'], $data['stock'], $data['condition'], 
-            $data['cost'], $data['price_client'], $data['price_wholesale'], $data['price_technician'],
-            $provider_id, $entry_date, $warranty_expires_on, $args['id']
-        ]);
-
+        $this->productService->updateProduct($id, $data);
         $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Producto actualizado']));
         return $response;
     }
 
     public function delete(Request $request, Response $response, array $args): Response
     {
-        $stmt = $this->pdo->prepare("UPDATE products SET is_active = 0 WHERE id = ?");
-        $stmt->execute([$args['id']]);
+        $id = (int)$args['id'];
+        $this->productService->deleteProduct($id);
         $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Producto desactivado']));
         return $response;
     }
 
     public function uploadImage(Request $request, Response $response, array $args): Response
     {
-        $directory = __DIR__ . '/../../public/uploads';
+        $id = (int)$args['id'];
         $uploadedFiles = $request->getUploadedFiles();
-        $uploadedFile = $uploadedFiles['image'];
-
-        if ($uploadedFile->getError() === UPLOAD_ERR_OK) {
-            $filename = uniqid() . '-' . $uploadedFile->getClientFilename();
-            $path = $directory . DIRECTORY_SEPARATOR . $filename;
-            $uploadedFile->moveTo($path);
-
-            $stmt = $this->pdo->prepare("UPDATE products SET image_path = ? WHERE id = ?");
-            $stmt->execute(['uploads/' . $filename, $args['id']]);
-
-            $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Imagen subida']));
-            return $response;
+        
+        if (empty($uploadedFiles['image'])) {
+            $response->getBody()->write(json_encode(['status' => 'error', 'message' => 'No se ha subido ninguna imagen.']));
+            return $response->withStatus(400);
         }
 
-        $response->getBody()->write(json_encode(['status' => 'error', 'message' => 'Error al subir la imagen']));
-        return $response->withStatus(500);
+        try {
+            $this->productService->uploadProductImage($id, $uploadedFiles['image']);
+            $response->getBody()->write(json_encode(['status' => 'success', 'message' => 'Imagen subida']));
+            return $response;
+        } catch (\RuntimeException $e) {
+            $response->getBody()->write(json_encode(['status' => 'error', 'message' => $e->getMessage()]));
+            return $response->withStatus(500);
+        }
+    }
+
+    public function getLowStockProducts(Request $request, Response $response): Response
+    {
+        $products = $this->productService->getLowStockProducts();
+        $response->getBody()->write(json_encode(['status' => 'success', 'data' => $products]));
+        return $response;
     }
 }

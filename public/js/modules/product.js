@@ -4,48 +4,47 @@ import * as ui from '../ui.js';
 let products = [];
 let providers = [];
 let userRole = '';
+let currentFilters = {};
+
+// Template caching
+const productRowTemplate = document.getElementById('product-row-template').content;
 
 function getProductRow(product, userRole) {
-    const actions = (userRole === 'admin') ? `
-        <td>
-            <button class="btn btn-sm btn-warning edit-product-btn" data-id="${product.id}">Editar</button>
-            <button class="btn btn-sm btn-danger delete-product-btn" data-id="${product.id}">Eliminar</button>
-        </td>
-    ` : '';
-    
-    let priceDisplay = '';
+    const row = document.importNode(productRowTemplate, true);
+    const rowElement = row.querySelector('tr');
+    rowElement.dataset.id = product.id;
+
+    row.querySelector('[data-label="ID"]').textContent = product.id;
+    row.querySelector('[data-label="Nombre"]').textContent = product.name;
+    row.querySelector('[data-label="Condición"]').textContent = product.condition;
+    row.querySelector('[data-label="Stock"]').textContent = product.stock;
+    row.querySelector('[data-label="Proveedor"]').textContent = product.provider_name || 'Anónimo';
+    row.querySelector('[data-label="F. Entrada"]').textContent = product.entry_date || 'N/A';
+    row.querySelector('[data-label="Garantía Exp."]').textContent = product.warranty_expires_on || 'N/A';
+
     if (userRole === 'admin') {
-        priceDisplay = `
-            <td>$${parseFloat(product.cost).toFixed(2)}</td>
-            <td>$${parseFloat(product.price_client).toFixed(2)}</td>
-            <td>$${parseFloat(product.price_wholesale).toFixed(2)}</td>
-            <td>$${parseFloat(product.price_technician).toFixed(2)}</td>
-        `;
+        row.querySelector('[data-label="Costo"]').textContent = `$${parseFloat(product.cost).toFixed(2)}`;
+        row.querySelector('[data-label="P. Cliente"]').textContent = `$${parseFloat(product.price_client).toFixed(2)}`;
+        row.querySelector('[data-label="P. Mayorista"]').textContent = `$${parseFloat(product.price_wholesale).toFixed(2)}`;
+        row.querySelector('[data-label="P. Técnico"]').textContent = `$${parseFloat(product.price_technician).toFixed(2)}`;
+        row.querySelector('.edit-product-btn').dataset.id = product.id;
+        row.querySelector('.delete-product-btn').dataset.id = product.id;
+        row.querySelectorAll('.non-admin-only').forEach(el => el.remove());
     } else {
-        priceDisplay = `<td>$${parseFloat(product.price).toFixed(2)}</td>`;
+        row.querySelector('[data-label="Precio"]').textContent = `$${parseFloat(product.price_client).toFixed(2)}`;
+        row.querySelectorAll('.admin-only').forEach(el => el.remove());
     }
 
-    return `
-        <tr data-id="${product.id}">
-            <td>${product.id}</td>
-            <td>${product.name}</td>
-            <td>${product.condition}</td>
-            <td>${product.stock}</td>
-            ${priceDisplay}
-            <td>${product.provider_name || 'Anónimo'}</td>
-            <td>${product.entry_date || 'N/A'}</td>
-            <td>${product.warranty_expires_on || 'N/A'}</td>
-            ${actions}
-        </tr>
-    `;
+    return row;
 }
 
-async function loadProducts(filters = {}) {
+async function loadProducts(page = 1, filters = {}) {
+    currentFilters = filters;
     try {
-        const result = await api.getProducts(filters);
+        const result = await api.getProducts(page, filters);
         products = result.data;
-        ui.renderProducts(products, userRole, getProductRow);
-        setupProductFilters(); // Call setup after rendering
+        ui.renderProducts(products, result.pagination, userRole, getProductRow, (newPage) => loadProducts(newPage, currentFilters));
+        setupProductFilters();
     } catch (error) {
         ui.showAlert('Error al cargar productos: ' + error.message, 'danger');
     }
@@ -67,18 +66,17 @@ function setupProductFilters() {
                 price_order: priceOrder,
                 low_stock: lowStock ? 'true' : 'false'
             };
-            loadProducts(filters);
+            loadProducts(1, filters);
         });
 
         document.getElementById('clear-product-filters').addEventListener('click', () => {
             form.reset();
-            loadProducts({}); // Load all products
+            loadProducts(1, {});
         });
     }
 }
 
 async function showAddProductForm() {
-    // Asegurarse de que los proveedores estén cargados antes de mostrar el formulario
     if (providers.length === 0) {
         const result = await api.getProviders();
         providers = result.data;
@@ -126,16 +124,27 @@ async function saveProduct(form) {
     }
 }
 
-async function deleteProduct(id) {
-    if (confirm('¿Estás seguro de que quieres eliminar este producto?')) {
-        try {
-            await api.deleteProduct(id);
-            ui.showAlert('Producto eliminado con éxito.');
-            loadProducts();
-        } catch (error) {
-            ui.showAlert('Error al eliminar el producto: ' + error.message, 'danger');
+function deleteProduct(id, button) {
+    button.disabled = true;
+    ui.showConfirmModal(
+        'Confirmar Eliminación',
+        '¿Estás seguro de que quieres eliminar este producto?',
+        async () => {
+            try {
+                await api.deleteProduct(id);
+                ui.showAlert('Producto eliminado con éxito.');
+                loadProducts();
+            } catch (error) {
+                ui.showAlert('Error al eliminar el producto: ' + error.message, 'danger');
+                button.disabled = false;
+            }
         }
-    }
+    );
+
+    const modalElement = document.getElementById('form-modal');
+    modalElement.addEventListener('hidden.bs.modal', () => {
+        button.disabled = false;
+    }, { once: true });
 }
 
 export function init(role) {
@@ -146,14 +155,12 @@ export function init(role) {
 export function handleProductClick(e) {
     if (e.target.id === 'add-product-btn') {
         showAddProductForm();
-    }
-    else if (e.target.classList.contains('edit-product-btn')) {
+    } else if (e.target.classList.contains('edit-product-btn')) {
         const id = e.target.dataset.id;
         showEditProductForm(id);
-    }
-    else if (e.target.classList.contains('delete-product-btn')) {
+    } else if (e.target.classList.contains('delete-product-btn')) {
         const id = e.target.dataset.id;
-        deleteProduct(id);
+        deleteProduct(id, e.target);
     }
 }
 

@@ -14,3 +14,9 @@
 #app-view {
     padding-bottom: 100px; /* Espacio para botones flotantes o pies de página */
 }
+
+/* Estilo para las notificaciones en el panel */
+#notifications-list .dropdown-item {
+    white-space: normal; /* Permite que el texto se ajuste */
+    word-wrap: break-word; /* Rompe palabras largas */
+}

@@ -1,4 +1,3 @@
-
 const API_BASE_URL = '/inventario/public'; // Ajusta si tu estructura de URL es diferente
 
 export const api = {
@@ -39,7 +38,8 @@ export const api = {
     },
 
     // --- Products ---
-    getProducts(params = {}) {
+    getProducts(page = 1, filters = {}) {
+        const params = { page, ...filters };
         const query = new URLSearchParams(params).toString();
         return this._fetch(`/products?${query}`);
     },
@@ -75,8 +75,13 @@ export const api = {
         });
     },
 
+    getLowStockProducts() {
+        return this._fetch('/products/low-stock');
+    },
+
     // --- Providers ---
-    getProviders(params = {}) {
+    getProviders(page = 1, filters = {}) {
+        const params = { page, ...filters };
         const query = new URLSearchParams(params).toString();
         return this._fetch(`/providers?${query}`);
     },
@@ -101,10 +106,46 @@ export const api = {
         return this._fetch(`/providers/${id}`, { method: 'DELETE' });
     },
 
+    // --- Customers ---
+    getCustomers(page = 1, filters = {}) {
+        const params = { page, ...filters };
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/customers?${query}`);
+    },
+
+    getCustomer(id) {
+        return this._fetch(`/customers/${id}`);
+    },
+
+    createCustomer(customerData) {
+        return this._fetch('/customers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(customerData)
+        });
+    },
+
+    updateCustomer(id, customerData) {
+        return this._fetch(`/customers/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(customerData)
+        });
+    },
+
+    deleteCustomer(id) {
+        return this._fetch(`/customers/${id}`, { method: 'DELETE' });
+    },
+
     // --- Sales ---
-    getSales(params = {}) {
+    getSales(page = 1, filters = {}) {
+        const params = { page, ...filters };
         const query = new URLSearchParams(params).toString();
         return this._fetch(`/sales?${query}`);
+    },
+
+    getSale(id) {
+        return this._fetch(`/sales/${id}`);
     },
 
     createSale(saleData) {
@@ -115,8 +156,21 @@ export const api = {
         });
     },
 
+    updateSale(id, saleData) {
+        return this._fetch(`/sales/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(saleData)
+        });
+    },
+
+    deleteSale(id) {
+        return this._fetch(`/sales/${id}`, { method: 'DELETE' });
+    },
+
     // --- Warranties ---
-    getWarranties(params = {}) {
+    getWarranties(page = 1, filters = {}) {
+        const params = { page, ...filters };
         const query = new URLSearchParams(params).toString();
         return this._fetch(`/warranties?${query}`);
     },
@@ -129,12 +183,16 @@ export const api = {
         });
     },
 
-    updateWarrantyStatus(id, status) {
-        return this._fetch(`/warranties/${id}/status`, {
+    updateWarranty(id, warrantyData) {
+        return this._fetch(`/warranties/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status })
+            body: JSON.stringify(warrantyData)
         });
+    },
+
+    deleteWarranty(id) {
+        return this._fetch(`/warranties/${id}`, { method: 'DELETE' });
     },
 
     // --- Reports ---
@@ -144,5 +202,126 @@ export const api = {
 
     getSalesReport() { // Nuevo: Reporte de ventas
         return this._fetch('/reports/sales');
+    },
+
+    async generatePdfReport(type) {
+        const url = `${API_BASE_URL}/reports/pdf?type=${type}`;
+        try {
+            const response = await fetch(url, { credentials: 'include' });
+
+            if (!response.ok) {
+                // Intenta leer el error como JSON
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || `Error ${response.status}`);
+            }
+
+            return response.blob();
+        } catch (error) {
+            console.error('API Error (PDF):', error.message);
+            throw error;
+        }
+    },
+
+    getReportData(type) {
+        return this._fetch(`/reports/data?type=${type}`);
+    },
+
+        // --- Quotes ---
+    getQuotes(page = 1, filters = {}) {
+        const params = { page, ...filters };
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/quotes?${query}`);
+    },
+
+    getQuote(id) {
+        return this._fetch(`/quotes/${id}`);
+    },
+
+    createQuote(quoteData) {
+        return this._fetch('/quotes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(quoteData)
+        });
+    },
+
+    updateQuote(id, quoteData) {
+        return this._fetch(`/quotes/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(quoteData)
+        });
+    },
+
+    deleteQuote(id) {
+        return this._fetch(`/quotes/${id}`, { method: 'DELETE' });
+    },
+
+    async generateQuotePdf(id) {
+        const url = `${API_BASE_URL}/quotes/${id}/pdf`;
+        try {
+            const response = await fetch(url, { credentials: 'include' });
+
+            if (!response.ok) {
+                // Intenta leer el error como JSON
+                const errorData = await response.json().catch(() => null);
+                throw new Error(errorData?.message || `Error ${response.status}`);
+            }
+
+            return response.blob();
+        } catch (error) {
+            console.error('API Error (PDF):', error.message);
+            throw error;
+        }
+    },
+
+    // --- Notifications ---
+    getNotifications(page = 1, limit = 5) {
+        return this._fetch(`/notifications?page=${page}&limit=${limit}`);
+    },
+
+    getUnreadNotificationCount() {
+        return this._fetch('/notifications/unread-count');
+    },
+
+    markNotificationAsRead(id) {
+        return this._fetch(`/notifications/${id}/mark-read`, {
+            method: 'POST'
+        });
+    },
+
+    // --- Invoices ---
+    getInvoices(page = 1, filters = {}) {
+        const params = { page, ...filters };
+        const query = new URLSearchParams(params).toString();
+        return this._fetch(`/invoices?${query}`);
+    },
+
+    generateInvoice(saleId) {
+        return this._fetch(`/invoices/generate/${saleId}`, {
+            method: 'POST',
+        });
+    },
+
+    getInvoice(id) {
+        return this._fetch(`/invoices/${id}`);
+    },
+
+    updateInvoice(id, data) {
+        return this._fetch(`/invoices/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    },
+
+    deleteInvoice(id) {
+        return this._fetch(`/invoices/${id}`, {
+            method: 'DELETE'
+        });
+    },
+
+    previewInvoice(id) {
+        window.open(`${API_BASE_URL}/invoices/${id}/preview`, '_blank');
     }
 };
